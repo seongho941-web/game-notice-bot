@@ -158,6 +158,23 @@ def main():
 
     save_seen(seen)
 
+import requests
+
+url = "https://forum.kakaogames.com/dokkaebi/"
+
+response = requests.get(
+    url,
+    headers={
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://www.google.com/",
+    },
+    timeout=20,
+)
+
+print("HTTP 상태 코드:", response.status_code)
+print("최종 주소:", response.url)
+print("응답 길이:", len(response.text))
+print("응답 앞부분:", response.text[:500])
 
 if __name__ == "__main__":
     main()
