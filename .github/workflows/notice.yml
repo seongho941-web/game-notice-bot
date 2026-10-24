@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: dokkaebi-notice-bot
+  cancel-in-progress: false
+
 jobs:
   check-notices:
     runs-on: ubuntu-latest
@@ -30,7 +34,7 @@ jobs:
           DOKKAEBI_WEBHOOK: ${{ secrets.DOKKAEBI_WEBHOOK }}
         run: python bot.py
 
-      - name: 게시글 중복 방지 데이터 저장
+      - name: 중복 방지 데이터 저장
         if: always()
         run: |
           git config user.name "game-notice-bot"
