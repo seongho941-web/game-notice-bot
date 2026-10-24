@@ -25,12 +25,8 @@ jobs:
       - name: 패키지 설치
         run: pip install -r requirements.txt
 
-      - name: 브라우저 설치
-        run: playwright install --with-deps chromium
-
       - name: 공지 확인 및 전송
         env:
-          MABI_WEBHOOK: ${{ secrets.MABI_WEBHOOK }}
           DOKKAEBI_WEBHOOK: ${{ secrets.DOKKAEBI_WEBHOOK }}
         run: python bot.py
 
