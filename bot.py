@@ -72,14 +72,15 @@ def get_mabi_posts():
     return posts
 
 
+
 def get_dokkaebi_posts():
-    soup = get_soup(DOKKAEBI_NOTICE_URL)
+    soup = get_soup("https://forum.kakaogames.com/dokkaebi/")
     posts = []
     found = set()
 
     for a in soup.select("a[href]"):
         title = a.get_text(" ", strip=True)
-        link = urldefrag(urljoin(DOKKAEBI_NOTICE_URL, a["href"]))[0]
+        link = urljoin("https://forum.kakaogames.com", a["href"])
 
         if not title:
             continue
@@ -100,7 +101,9 @@ def get_dokkaebi_posts():
             "url": link,
         })
 
+    print(f"도깨비의 세계 공지사항 {len(posts)}개 발견")
     return posts
+
 
 
 def send_notice(post, webhook):
