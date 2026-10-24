@@ -124,10 +124,8 @@ def send_notice(post, webhook):
     response.raise_for_status()
 
 
-def main():
-    seen = load_seen()
-    first_run = not seen
 
+def main():
     targets = [
         ("MABI_WEBHOOK", get_mabi_posts),
         ("DOKKAEBI_WEBHOOK", get_dokkaebi_posts),
@@ -144,23 +142,18 @@ def main():
         posts = fetch_posts()
         print(f"{secret_name}: 게시글 {len(posts)}개 확인")
 
-        if first_run:
-            for post in posts:
-                seen.add(post["url"])
+        if not posts:
+            print(f"{secret_name}: 전송할 게시글이 없습니다.")
             continue
 
-        new_posts = [
-            post for post in posts
-            if post["url"] not in seen
-        ]
+        # 테스트 목적으로 가장 최근 목록에서 게시글 하나만 전송
+        post = posts[0]
+        send_notice(post, webhook)
+        print(f"테스트 전송 완료: {post['title']}")
 
-        for post in reversed(new_posts):
-            send_notice(post, webhook)
-            seen.add(post["url"])
-            print(f"전송 완료: {post['title']}")
-
-    save_seen(seen)
+    save_seen(load_seen())
 
 
 if __name__ == "__main__":
     main()
+
