@@ -115,11 +115,7 @@ def get_notices():
         ).strip()
 
         url = (
-            post.get("url")
-            or post.get("link")
-            or post.get("detailUrl")
-            or post.get("noticeUrl")
-            or ""
+            f"https://bbs.kakaogames.com/ko/1329429/notice/detail?id={post_id}"
         )
 
         if not post_id or not title:
