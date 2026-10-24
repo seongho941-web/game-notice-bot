@@ -44,22 +44,27 @@ def get_soup(url):
     return BeautifulSoup(response.text, "html.parser")
 
 
+
 def get_mabi_posts():
     soup = get_soup(MABI_NOTICE_URL)
     posts = []
     found = set()
 
     for a in soup.select("a[href]"):
-        title = a.get_text(" ", strip=True)
         link = urldefrag(urljoin(MABI_NOTICE_URL, a["href"]))[0]
 
+        # URL의 대소문자 차이를 무시하고 공지 상세 링크 확인
+        if "/news/notice/" not in link.lower():
+            continue
+
+        title = a.get_text(" ", strip=True)
+
         if not title:
-            continue
+            img = a.find("img")
+            if img:
+                title = img.get("alt", "").strip()
 
-        if "/News/Notice/" not in link:
-            continue
-
-        if link in found:
+        if not title or link in found:
             continue
 
         found.add(link)
@@ -69,7 +74,13 @@ def get_mabi_posts():
             "url": link,
         })
 
+    print(f"마비노기 모바일 공지사항 {len(posts)}개 발견")
+    for post in posts[:3]:
+        print(f"확인한 공지: {post['title']} | {post['url']}")
+
     return posts
+
+
 
 
 
@@ -79,19 +90,22 @@ def get_dokkaebi_posts():
     found = set()
 
     for a in soup.select("a[href]"):
-        title = a.get_text(" ", strip=True)
         link = urldefrag(urljoin(DOKKAEBI_NOTICE_URL, a["href"]))[0]
 
+        # 새 공식 게시판의 상세 공지 주소 형식
+        if "/ko/1329429/notice/detail" not in link:
+            continue
+
+        title = a.get_text(" ", strip=True)
+
+        # 링크 글자가 비어 있는 경우 제목을 찾기 위해
+        # 링크 내부 이미지의 대체 텍스트도 확인
         if not title:
-            continue
+            img = a.find("img")
+            if img:
+                title = img.get("alt", "").strip()
 
-        if "/dokkaebi/postView/" not in link:
-            continue
-
-        if "code=notice" not in link:
-            continue
-
-        if link in found:
+        if not title or link in found:
             continue
 
         found.add(link)
@@ -102,7 +116,11 @@ def get_dokkaebi_posts():
         })
 
     print(f"도깨비의 세계 공지사항 {len(posts)}개 발견")
+    for post in posts[:3]:
+        print(f"확인한 공지: {post['title']} | {post['url']}")
+
     return posts
+
 
 
 
