@@ -16,6 +16,11 @@ API_URL = (
     "&cnt=10"
 )
 
+NOTICE_URL = (
+    "https://bbs.kakaogames.com/ko/1329429/"
+    "notice/detail?id={}"
+)
+
 STATE_FILE = Path("seen_posts.json")
 
 
@@ -28,9 +33,9 @@ def load_seen():
             STATE_FILE.read_text(encoding="utf-8")
         )
         if isinstance(data, list):
-            return set(str(item) for item in data)
+            return {str(item) for item in data}
     except (OSError, json.JSONDecodeError):
-        pass
+        print("중복 방지 기록을 읽지 못했습니다.")
 
     return set()
 
@@ -47,7 +52,7 @@ def save_seen(seen):
 
 
 def get_notices():
-    print("[도깨비의 세계] 공지 API 요청")
+    print("[도깨비의 세계] 공지 확인 시작")
 
     response = requests.get(
         API_URL,
@@ -63,35 +68,19 @@ def get_notices():
 
     data = response.json()
 
-    print("API 응답 최상위 항목:", list(data.keys()) if isinstance(data, dict) else type(data).__name__)
+    if not isinstance(data, dict):
+        raise RuntimeError("공지 API 응답 형식이 예상과 다릅니다.")
 
-    # API 응답 구조에 따라 공지 목록 추출
-    posts = None
+    if data.get("code") not in (None, 0, "0", "SUCCESS", "success"):
+        raise RuntimeError(
+            f"공지 API 오류: {data.get('code')} / "
+            f"{data.get('message')}"
+        )
 
-    if isinstance(data, list):
-        posts = data
-    elif isinstance(data, dict):
-        for key in ("data", "result", "noticeList", "list", "notices", "items"):
-            value = data.get(key)
+    posts = data.get("noticeList")
 
-            if isinstance(value, list):
-                posts = value
-                break
-
-            if isinstance(value, dict):
-                for nested_key in ("list", "noticeList", "notices", "items"):
-                    nested_value = value.get(nested_key)
-                    if isinstance(nested_value, list):
-                        posts = nested_value
-                        break
-
-            if posts is not None:
-                break
-
-    if posts is None:
-        print("공지 목록 구조를 자동으로 찾지 못했습니다.")
-        print("응답 일부:", json.dumps(data, ensure_ascii=False)[:1500])
-        return []
+    if not isinstance(posts, list):
+        raise RuntimeError("공지 목록을 찾을 수 없습니다.")
 
     notices = []
 
@@ -114,36 +103,29 @@ def get_notices():
             or ""
         ).strip()
 
-        url = (
-            f"https://bbs.kakaogames.com/ko/1329429/notice/detail?id={post_id}"
-        )
-
-        if not post_id or not title:
+        if post_id is None or not title:
             continue
 
-        if url and url.startswith("/"):
-            url = "https://web-api.kakaogame.com" + url
+        post_id = str(post_id)
 
         notices.append({
-            "id": str(post_id),
+            "id": post_id,
             "title": title,
-            "url": url,
+            "url": NOTICE_URL.format(post_id),
         })
 
-    print(f"[도깨비의 세계] 공지 {len(notices)}개 수집")
+    # 최신 공지가 앞에 오도록 ID 기준으로 정렬하지 않고
+    # API가 반환한 순서를 그대로 유지합니다.
+    print(f"공지 {len(notices)}개 수집")
 
-    for notice in notices[:5]:
-        print(f" - 제목: {notice['title']}")
-        print(f"   ID: {notice['id']}")
-        print(f"   URL: {notice['url']}")
+    for notice in notices:
+        print(f" - [{notice['id']}] {notice['title']}")
 
     return notices
 
 
 def send_notice(notice, webhook):
-    url = notice["url"]
-
-    message = f"{notice['title']}\n{url}"
+    message = f"📢 **도깨비의 세계 공지**\n{notice['title']}\n{notice['url']}"
 
     response = requests.post(
         webhook,
@@ -155,8 +137,7 @@ def send_notice(notice, webhook):
     )
 
     response.raise_for_status()
-    print(f"[전송 성공] {notice['title']}")
-
+    print(f"[전송 성공] {notice['id']}: {notice['title']}")
 
 
 def main():
@@ -167,26 +148,40 @@ def main():
             "GitHub Secrets의 DOKKAEBI_WEBHOOK을 확인해 주세요."
         )
 
+    seen = load_seen()
     notices = get_notices()
 
     if not notices:
-        raise RuntimeError("공지 목록을 가져오지 못했습니다.")
+        print("확인할 공지가 없습니다.")
+        return
 
-    # 테스트: 최신 공지 5개를 중복 여부와 관계없이 전송
-    test_notices = notices[:5]
+    # 첫 실행이거나 기록이 없는 경우 현재 공지를 기준점으로 저장합니다.
+    # 기존 공지를 한꺼번에 다시 전송하지 않습니다.
+    if not seen:
+        seen.update(notice["id"] for notice in notices)
+        save_seen(seen)
+        print("최초 실행: 기존 공지를 기준점으로 저장했습니다.")
+        return
 
-    if len(test_notices) < 5:
-        print(f"주의: 공지가 {len(test_notices)}개만 수집되었습니다.")
+    new_notices = [
+        notice for notice in notices
+        if notice["id"] not in seen
+    ]
 
-    for notice in reversed(test_notices):
+    if not new_notices:
+        print("새 공지가 없습니다.")
+        return
+
+    # API가 최신 공지부터 반환한다고 가정하고,
+    # 새 공지는 오래된 것부터 전송합니다.
+    for notice in reversed(new_notices):
         send_notice(notice, webhook)
 
-    print(f"테스트 완료: 공지 {len(test_notices)}개 전송 시도")
+        # 성공적으로 전송한 공지만 즉시 기록합니다.
+        seen.add(notice["id"])
+        save_seen(seen)
 
-
-if __name__ == "__main__":
-    main()
-
+    print(f"새 공지 {len(new_notices)}개 전송 완료")
 
 
 if __name__ == "__main__":
