@@ -158,6 +158,7 @@ def send_notice(notice, webhook):
     print(f"[전송 성공] {notice['title']}")
 
 
+
 def main():
     webhook = os.getenv("DOKKAEBI_WEBHOOK")
 
@@ -166,34 +167,26 @@ def main():
             "GitHub Secrets의 DOKKAEBI_WEBHOOK을 확인해 주세요."
         )
 
-    seen = load_seen()
     notices = get_notices()
 
     if not notices:
-        raise RuntimeError(
-            "공지 목록을 찾지 못했습니다. API 응답 구조를 확인해야 합니다."
-        )
+        raise RuntimeError("공지 목록을 가져오지 못했습니다.")
 
-    if not seen:
-        # 최초 실행은 최신 공지 하나만 테스트 전송
-        send_notice(notices[0], webhook)
-        seen.update(notice["id"] for notice in notices)
-    else:
-        new_notices = [
-            notice
-            for notice in notices
-            if notice["id"] not in seen
-        ]
+    # 테스트: 최신 공지 5개를 중복 여부와 관계없이 전송
+    test_notices = notices[:5]
 
-        for notice in reversed(new_notices):
-            send_notice(notice, webhook)
-            seen.add(notice["id"])
+    if len(test_notices) < 5:
+        print(f"주의: 공지가 {len(test_notices)}개만 수집되었습니다.")
 
-        if not new_notices:
-            print("새 공지가 없습니다.")
+    for notice in reversed(test_notices):
+        send_notice(notice, webhook)
 
-    save_seen(seen)
-    print("공지 확인 완료.")
+    print(f"테스트 완료: 공지 {len(test_notices)}개 전송 시도")
+
+
+if __name__ == "__main__":
+    main()
+
 
 
 if __name__ == "__main__":
