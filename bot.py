@@ -74,13 +74,13 @@ def get_mabi_posts():
 
 
 def get_dokkaebi_posts():
-    soup = get_soup("https://forum.kakaogames.com/dokkaebi/")
+    soup = get_soup(DOKKAEBI_NOTICE_URL)
     posts = []
     found = set()
 
     for a in soup.select("a[href]"):
         title = a.get_text(" ", strip=True)
-        link = urljoin("https://forum.kakaogames.com", a["href"])
+        link = urldefrag(urljoin(DOKKAEBI_NOTICE_URL, a["href"]))[0]
 
         if not title:
             continue
