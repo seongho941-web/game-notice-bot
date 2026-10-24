@@ -13,7 +13,7 @@ STATE_FILE = Path("seen_posts.json")
 MABI_NOTICE_URL = "https://mabinogimobile.nexon.com/News/Notice"
 
 # 도깨비의 세계 공식 커뮤니티 공지사항 탭
-DOKKAEBI_NOTICE_URL = "https://forum.kakaogames.com/dokkaebi/postList/?code=notice"
+DOKKAEBI_NOTICE_URL = "https://bbs.kakaogames.com/ko/1329429/notice?utm_source=chatgpt.com"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; GameNoticeBot/1.0)"
