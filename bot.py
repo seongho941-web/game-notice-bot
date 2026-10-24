@@ -1,22 +1,19 @@
 
 import json
 import os
-import re
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urldefrag
 
 import requests
 from bs4 import BeautifulSoup
 
 STATE_FILE = Path("seen_posts.json")
 
-MABI_PAGES = {
-    "공지사항": "https://mabinogimobile.nexon.com/News/Notice",
-    "업데이트": "https://mabinogimobile.nexon.com/News/Update",
-    "이벤트": "https://mabinogimobile.nexon.com/News/Events",
-}
+# 마비노기 모바일 공식 공지사항 탭
+MABI_NOTICE_URL = "https://mabinogimobile.nexon.com/News/Notice"
 
-DOKKAEBI_NOTICES = "https://forum.kakaogames.com/dokkaebi/postList/?code=notice"
+# 도깨비의 세계 공식 커뮤니티 공지사항 탭
+DOKKAEBI_NOTICE_URL = "https://forum.kakaogames.com/dokkaebi/postList/?code=notice"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; GameNoticeBot/1.0)"
@@ -28,7 +25,8 @@ def load_seen():
         return set()
 
     try:
-        return set(json.loads(STATE_FILE.read_text(encoding="utf-8")))
+        data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        return set(data) if isinstance(data, list) else set()
     except (json.JSONDecodeError, OSError):
         return set()
 
@@ -47,41 +45,41 @@ def get_soup(url):
 
 
 def get_mabi_posts():
+    soup = get_soup(MABI_NOTICE_URL)
     posts = []
+    found = set()
 
-    for category, page_url in MABI_PAGES.items():
-        soup = get_soup(page_url)
+    for a in soup.select("a[href]"):
+        title = a.get_text(" ", strip=True)
+        link = urldefrag(urljoin(MABI_NOTICE_URL, a["href"]))[0]
 
-        for a in soup.select("a[href]"):
-            title = a.get_text(" ", strip=True)
-            link = urljoin(page_url, a.get("href", ""))
+        if not title:
+            continue
 
-            if not title:
-                continue
+        if "/News/Notice/" not in link:
+            continue
 
-            if not re.search(r"/News/(Notice|Update|Events)/\d+", link):
-                continue
+        if link in found:
+            continue
 
-            if any(p["url"] == link for p in posts):
-                continue
-
-            posts.append({
-                "game": "마비노기 모바일",
-                "category": category,
-                "title": title,
-                "url": link,
-            })
+        found.add(link)
+        posts.append({
+            "game": "마비노기 모바일",
+            "title": title,
+            "url": link,
+        })
 
     return posts
 
 
 def get_dokkaebi_posts():
-    soup = get_soup(DOKKAEBI_NOTICES)
+    soup = get_soup(DOKKAEBI_NOTICE_URL)
     posts = []
+    found = set()
 
     for a in soup.select("a[href]"):
         title = a.get_text(" ", strip=True)
-        link = urljoin(DOKKAEBI_NOTICES, a.get("href", ""))
+        link = urldefrag(urljoin(DOKKAEBI_NOTICE_URL, a["href"]))[0]
 
         if not title:
             continue
@@ -92,9 +90,12 @@ def get_dokkaebi_posts():
         if "code=notice" not in link:
             continue
 
+        if link in found:
+            continue
+
+        found.add(link)
         posts.append({
-            "game": "도깨비의세계",
-            "category": "공지사항",
+            "game": "도깨비의 세계",
             "title": title,
             "url": link,
         })
@@ -104,7 +105,7 @@ def get_dokkaebi_posts():
 
 def send_notice(post, webhook):
     message = (
-        f"📢 **[{post['game']} · {post['category']}]**\n"
+        f"📢 **[{post['game']} 공지사항]**\n"
         f"{post['title']}\n"
         f"{post['url']}"
     )
@@ -122,6 +123,7 @@ def send_notice(post, webhook):
 
 def main():
     seen = load_seen()
+    first_run = not seen
 
     targets = [
         ("MABI_WEBHOOK", get_mabi_posts),
@@ -132,18 +134,22 @@ def main():
         webhook = os.getenv(secret_name)
 
         if not webhook:
-            raise RuntimeError(f"GitHub Secret 설정 누락: {secret_name}")
+            raise RuntimeError(
+                f"GitHub Secrets에 {secret_name} 설정이 필요합니다."
+            )
 
         posts = fetch_posts()
         print(f"{secret_name}: 게시글 {len(posts)}개 확인")
 
-        # 첫 실행에서는 기존 글을 기록만 하고 과거 공지를 몰아서 보내지 않음
-        if not seen:
+        if first_run:
             for post in posts:
                 seen.add(post["url"])
             continue
 
-        new_posts = [post for post in posts if post["url"] not in seen]
+        new_posts = [
+            post for post in posts
+            if post["url"] not in seen
+        ]
 
         for post in reversed(new_posts):
             send_notice(post, webhook)
