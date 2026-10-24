@@ -1,16 +1,21 @@
 
 import json
 import os
-import re
 from pathlib import Path
-from urllib.parse import urljoin
 
 import requests
-from bs4 import BeautifulSoup
 
 
-BASE_URL = "https://bbs.kakaogames.com"
-NOTICE_URL = f"{BASE_URL}/ko/1329429/notice"
+API_URL = (
+    "https://web-api.kakaogame.com/supportreal/v2/notice"
+    "?appId=1329429"
+    "&country=KR"
+    "&lang=ko"
+    "&market=googlePlay"
+    "&type=notice"
+    "&cnt=10"
+)
+
 STATE_FILE = Path("seen_posts.json")
 
 
@@ -22,86 +27,130 @@ def load_seen():
         data = json.loads(
             STATE_FILE.read_text(encoding="utf-8")
         )
-        return set(str(item) for item in data) if isinstance(data, list) else set()
+        if isinstance(data, list):
+            return set(str(item) for item in data)
     except (OSError, json.JSONDecodeError):
-        return set()
+        pass
+
+    return set()
 
 
 def save_seen(seen):
     STATE_FILE.write_text(
-        json.dumps(sorted(seen), ensure_ascii=False, indent=2),
+        json.dumps(
+            sorted(seen),
+            ensure_ascii=False,
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
 
 def get_notices():
-    print("[도깨비의 세계] 공식 공지 페이지 요청")
+    print("[도깨비의 세계] 공지 API 요청")
 
     response = requests.get(
-        NOTICE_URL,
+        API_URL,
         headers={
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/130.0.0.0 Safari/537.36"
-            ),
-            "Accept": "text/html,application/xhtml+xml",
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json, text/plain, */*",
         },
         timeout=30,
     )
 
-    print("페이지 응답 코드:", response.status_code)
+    print("API 응답 코드:", response.status_code)
     response.raise_for_status()
 
-    soup = BeautifulSoup(response.text, "html.parser")
+    data = response.json()
+
+    print("API 응답 최상위 항목:", list(data.keys()) if isinstance(data, dict) else type(data).__name__)
+
+    # API 응답 구조에 따라 공지 목록 추출
+    posts = None
+
+    if isinstance(data, list):
+        posts = data
+    elif isinstance(data, dict):
+        for key in ("data", "result", "noticeList", "list", "notices", "items"):
+            value = data.get(key)
+
+            if isinstance(value, list):
+                posts = value
+                break
+
+            if isinstance(value, dict):
+                for nested_key in ("list", "noticeList", "notices", "items"):
+                    nested_value = value.get(nested_key)
+                    if isinstance(nested_value, list):
+                        posts = nested_value
+                        break
+
+            if posts is not None:
+                break
+
+    if posts is None:
+        print("공지 목록 구조를 자동으로 찾지 못했습니다.")
+        print("응답 일부:", json.dumps(data, ensure_ascii=False)[:1500])
+        return []
+
     notices = []
-    found_ids = set()
 
-    for link in soup.find_all("a", href=True):
-        href = link["href"]
-
-        if "/ko/1329429/notice/detail" not in href:
+    for post in posts:
+        if not isinstance(post, dict):
             continue
 
-        match = re.search(r"[?&]id=(\d+)", href)
-        if not match:
+        post_id = (
+            post.get("seq")
+            or post.get("noticeSeq")
+            or post.get("id")
+            or post.get("noticeId")
+            or post.get("postId")
+        )
+
+        title = (
+            post.get("title")
+            or post.get("noticeTitle")
+            or post.get("subject")
+            or ""
+        ).strip()
+
+        url = (
+            post.get("url")
+            or post.get("link")
+            or post.get("detailUrl")
+            or post.get("noticeUrl")
+            or ""
+        )
+
+        if not post_id or not title:
             continue
 
-        post_id = match.group(1)
-
-        if post_id in found_ids:
-            continue
-
-        title = " ".join(link.get_text(" ", strip=True).split())
-
-        if not title:
-            title = link.get("title", "").strip()
-
-        if not title:
-            continue
-
-        found_ids.add(post_id)
+        if url and url.startswith("/"):
+            url = "https://web-api.kakaogame.com" + url
 
         notices.append({
-            "id": post_id,
+            "id": str(post_id),
             "title": title,
-            "url": urljoin(BASE_URL, href),
+            "url": url,
         })
 
     print(f"[도깨비의 세계] 공지 {len(notices)}개 수집")
 
     for notice in notices[:5]:
-        print(f" - {notice['title']} | {notice['url']}")
-
-    if not notices:
-        print("공지 링크를 찾지 못했습니다.")
-        print("페이지 내용 일부:", soup.get_text(" ", strip=True)[:500])
+        print(f" - {notice['title']} | ID: {notice['id']}")
 
     return notices
 
 
 def send_notice(notice, webhook):
-    message = f"{notice['title']}\n{notice['url']}"
+    url = notice["url"]
+
+    if not url:
+        url = (
+            "https://bbs.kakaogames.com/ko/1329429/notice"
+        )
+
+    message = f"{notice['title']}\n{url}"
 
     response = requests.post(
         webhook,
@@ -121,7 +170,7 @@ def main():
 
     if not webhook:
         raise RuntimeError(
-            "GitHub Secrets의 DOKKAEBI_WEBHOOK 설정을 확인해 주세요."
+            "GitHub Secrets의 DOKKAEBI_WEBHOOK을 확인해 주세요."
         )
 
     seen = load_seen()
@@ -129,7 +178,7 @@ def main():
 
     if not notices:
         raise RuntimeError(
-            "공지 목록을 찾지 못했습니다. 페이지 접근 또는 HTML 구조를 확인해야 합니다."
+            "공지 목록을 찾지 못했습니다. API 응답 구조를 확인해야 합니다."
         )
 
     if not seen:
@@ -138,7 +187,8 @@ def main():
         seen.update(notice["id"] for notice in notices)
     else:
         new_notices = [
-            notice for notice in notices
+            notice
+            for notice in notices
             if notice["id"] not in seen
         ]
 
