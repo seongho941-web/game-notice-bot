@@ -143,11 +143,6 @@ def get_notices():
 def send_notice(notice, webhook):
     url = notice["url"]
 
-    if not url:
-        url = (
-            "https://bbs.kakaogames.com/ko/1329429/notice"
-        )
-
     message = f"{notice['title']}\n{url}"
 
     response = requests.post(
