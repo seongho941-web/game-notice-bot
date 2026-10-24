@@ -85,15 +85,24 @@ def get_notices():
 def send_notice(notice, webhook):
     message = f"{notice['title']}\n{notice['url']}"
 
-    response = requests.post(
-        webhook,
-        json={
-            "content": message,
-            "allowed_mentions": {"parse": []},
-        },
-        timeout=20,
-    )
-    response.raise_for_status()
+    response = requests.get(
+    API_URL,
+    headers={
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/130.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json, text/plain, */*",
+        "Origin": "https://forum.kakaogames.com",
+        "Referer": "https://forum.kakaogames.com/dokkaebi/",
+    },
+    timeout=30,
+)
+
+print("API 응답 코드:", response.status_code)
+print("API 응답 내용:", response.text[:500])
+response.raise_for_status()
 
     print(f"[전송 성공] {notice['title']}")
 
