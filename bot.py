@@ -10,8 +10,12 @@ from bs4 import BeautifulSoup
 
 STATE_FILE = Path("seen_posts.json")
 
-MABI_NOTICE_URL = "https://mabinogimobile.nexon.com/News/Notice"
-DOKKAEBI_NOTICE_URL = "https://bbs.kakaogames.com/ko/1329429/notice"
+
+MABI_NOTICE_URL = "https://mabinogimobile.nexon.com/News/notice"
+
+
+DOKKAEBI_NOTICE_URL = "https://bbs.kakaogames.com/ko/1329429/notice/list"
+
 
 HEADERS = {
     "User-Agent": (
