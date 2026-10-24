@@ -1,6 +1,7 @@
 
 import json
 import os
+import re
 from pathlib import Path
 from urllib.parse import urljoin, urldefrag
 
@@ -9,15 +10,26 @@ from bs4 import BeautifulSoup
 
 STATE_FILE = Path("seen_posts.json")
 
-# 마비노기 모바일 공식 공지사항 탭
 MABI_NOTICE_URL = "https://mabinogimobile.nexon.com/News/Notice"
-
-# 도깨비의 세계 공식 커뮤니티 공지사항 탭
-DOKKAEBI_NOTICE_URL = "https://bbs.kakaogames.com/ko/1329429/notice?utm_source=chatgpt.com"
+DOKKAEBI_NOTICE_URL = "https://bbs.kakaogames.com/ko/1329429/notice"
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; GameNoticeBot/1.0)"
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/130.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8",
 }
+
+TEST_MODE = True
+
+
+def get_soup(url):
+    response = requests.get(url, headers=HEADERS, timeout=30)
+    print(f"페이지 요청: {url} | HTTP {response.status_code}")
+    response.raise_for_status()
+    return BeautifulSoup(response.text, "html.parser")
 
 
 def load_seen():
@@ -26,9 +38,12 @@ def load_seen():
 
     try:
         data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-        return set(data) if isinstance(data, list) else set()
+        if isinstance(data, list):
+            return set(data)
     except (json.JSONDecodeError, OSError):
-        return set()
+        pass
+
+    return set()
 
 
 def save_seen(seen):
@@ -38,11 +53,16 @@ def save_seen(seen):
     )
 
 
-def get_soup(url):
-    response = requests.get(url, headers=HEADERS, timeout=20)
-    response.raise_for_status()
-    return BeautifulSoup(response.text, "html.parser")
+def extract_title(a):
+    title = a.get_text(" ", strip=True)
+    if title:
+        return title
 
+    img = a.find("img")
+    if img:
+        return img.get("alt", "").strip()
+
+    return ""
 
 
 def get_mabi_posts():
@@ -52,18 +72,13 @@ def get_mabi_posts():
 
     for a in soup.select("a[href]"):
         link = urldefrag(urljoin(MABI_NOTICE_URL, a["href"]))[0]
+        path = link.lower().split("?")[0]
 
-        # URL의 대소문자 차이를 무시하고 공지 상세 링크 확인
-        if "/news/notice/" not in link.lower():
+        # 공지사항 상세 주소만 허용
+        if not re.search(r"/news/notice/\d+", path):
             continue
 
-        title = a.get_text(" ", strip=True)
-
-        if not title:
-            img = a.find("img")
-            if img:
-                title = img.get("alt", "").strip()
-
+        title = extract_title(a)
         if not title or link in found:
             continue
 
@@ -74,14 +89,11 @@ def get_mabi_posts():
             "url": link,
         })
 
-    print(f"마비노기 모바일 공지사항 {len(posts)}개 발견")
+    print(f"마비노기 모바일: 공지 {len(posts)}개 수집")
     for post in posts[:3]:
-        print(f"확인한 공지: {post['title']} | {post['url']}")
+        print("수집 확인:", post["title"], post["url"])
 
     return posts
-
-
-
 
 
 def get_dokkaebi_posts():
@@ -91,20 +103,13 @@ def get_dokkaebi_posts():
 
     for a in soup.select("a[href]"):
         link = urldefrag(urljoin(DOKKAEBI_NOTICE_URL, a["href"]))[0]
+        path = link.split("?")[0].rstrip("/")
 
-        # 새 공식 게시판의 상세 공지 주소 형식
-        if "/ko/1329429/notice/detail" not in link:
+        # 새 공식 게시판의 공지 상세 주소
+        if not re.search(r"/ko/1329429/notice/detail$", path):
             continue
 
-        title = a.get_text(" ", strip=True)
-
-        # 링크 글자가 비어 있는 경우 제목을 찾기 위해
-        # 링크 내부 이미지의 대체 텍스트도 확인
-        if not title:
-            img = a.find("img")
-            if img:
-                title = img.get("alt", "").strip()
-
+        title = extract_title(a)
         if not title or link in found:
             continue
 
@@ -115,13 +120,11 @@ def get_dokkaebi_posts():
             "url": link,
         })
 
-    print(f"도깨비의 세계 공지사항 {len(posts)}개 발견")
+    print(f"도깨비의 세계: 공지 {len(posts)}개 수집")
     for post in posts[:3]:
-        print(f"확인한 공지: {post['title']} | {post['url']}")
+        print("수집 확인:", post["title"], post["url"])
 
     return posts
-
-
 
 
 def send_notice(post, webhook):
@@ -140,10 +143,12 @@ def send_notice(post, webhook):
         timeout=20,
     )
     response.raise_for_status()
-
+    print(f"디스코드 전송 성공: {post['title']}")
 
 
 def main():
+    seen = load_seen()
+
     targets = [
         ("MABI_WEBHOOK", get_mabi_posts),
         ("DOKKAEBI_WEBHOOK", get_dokkaebi_posts),
@@ -151,27 +156,37 @@ def main():
 
     for secret_name, fetch_posts in targets:
         webhook = os.getenv(secret_name)
-
         if not webhook:
             raise RuntimeError(
-                f"GitHub Secrets에 {secret_name} 설정이 필요합니다."
+                f"GitHub Secrets 설정 누락: {secret_name}"
             )
 
-        posts = fetch_posts()
-        print(f"{secret_name}: 게시글 {len(posts)}개 확인")
-
-        if not posts:
-            print(f"{secret_name}: 전송할 게시글이 없습니다.")
+        try:
+            posts = fetch_posts()
+        except Exception as exc:
+            print(f"{secret_name} 수집 실패: {type(exc).__name__}: {exc}")
             continue
 
-        # 테스트 목적으로 가장 최근 목록에서 게시글 하나만 전송
-        post = posts[0]
-        send_notice(post, webhook)
-        print(f"테스트 전송 완료: {post['title']}")
+        if not posts:
+            print(
+                f"{secret_name}: 게시글 0개. "
+                "사이트의 HTML 구조 또는 접근 방식을 확인해야 합니다."
+            )
+            continue
 
-    save_seen(load_seen())
+        if TEST_MODE:
+            # 테스트 중에는 게임별로 기존 공지 하나를 전송
+            send_notice(posts[0], webhook)
+            continue
+
+        new_posts = [p for p in posts if p["url"] not in seen]
+
+        for post in reversed(new_posts):
+            send_notice(post, webhook)
+            seen.add(post["url"])
+
+    save_seen(seen)
 
 
 if __name__ == "__main__":
     main()
-
