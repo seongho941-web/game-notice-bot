@@ -25,11 +25,18 @@ HEADERS = {
 TEST_MODE = True
 
 
+
 def get_soup(url):
     response = requests.get(url, headers=HEADERS, timeout=30)
-    print(f"페이지 요청: {url} | HTTP {response.status_code}")
+    print(f"페이지 요청: {url}")
+    print(f"HTTP 상태 코드: {response.status_code}")
+    print(f"최종 접속 주소: {response.url}")
+    print(f"HTML 길이: {len(response.text)}")
+    print(f"HTML 앞부분: {response.text[:500]!r}")
+
     response.raise_for_status()
     return BeautifulSoup(response.text, "html.parser")
+
 
 
 def load_seen():
