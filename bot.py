@@ -9,8 +9,8 @@ from playwright.sync_api import sync_playwright
 
 STATE_FILE = Path("seen_posts.json")
 
-MABI_URL = "https://mabinogimobile.nexon.com/News/Notice"
-DOKKAEBI_URL = "https://bbs.kakaogames.com/ko/1329429/notice"
+MABI_URL = "https://mabinogimobile.nexon.com/News/notice"
+DOKKAEBI_URL = "https://m-forum.kakaogames.com/dokkaebi/"
 
 def load_seen():
     if not STATE_FILE.exists():
@@ -63,7 +63,7 @@ def get_posts(page, url, game):
                 if not re.search(r"/news/notice/\d+", low):
                     continue
             else:
-                if "/ko/1329429/notice/detail" not in low:
+                if "/dokkaebi/postview/" not in low or "code=notice" not in low:
                     continue
 
             if link in found:
