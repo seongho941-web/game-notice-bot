@@ -137,7 +137,9 @@ def get_notices():
     print(f"[도깨비의 세계] 공지 {len(notices)}개 수집")
 
     for notice in notices[:5]:
-        print(f" - {notice['title']} | ID: {notice['id']}")
+        print(f" - 제목: {notice['title']}")
+        print(f"   ID: {notice['id']}")
+        print(f"   URL: {notice['url']}")
 
     return notices
 
