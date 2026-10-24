@@ -1,0 +1,40 @@
+
+name: Game Notice Bot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  check-notices:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 저장소 가져오기
+        uses: actions/checkout@v4
+
+      - name: Python 준비
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 패키지 설치
+        run: pip install -r requirements.txt
+
+      - name: 공지 확인 및 전송
+        env:
+          MABI_WEBHOOK: ${{ secrets.MABI_WEBHOOK }}
+          DOKKAEBI_WEBHOOK: ${{ secrets.DOKKAEBI_WEBHOOK }}
+        run: python bot.py
+
+      - name: 게시글 중복 방지 데이터 저장
+        run: |
+          git config user.name "game-notice-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add seen_posts.json
+          git diff --cached --quiet || git commit -m "Update seen notice posts"
+          git push
