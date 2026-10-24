@@ -10,7 +10,7 @@ from playwright.sync_api import sync_playwright
 STATE_FILE = Path("seen_posts.json")
 
 NOTICE_URL = (
-    "https://m-forum.kakaogames.com/"
+    "https://forum.kakaogames.com/"
     "dokkaebi/postList/?code=notice"
 )
 
