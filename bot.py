@@ -31,6 +31,9 @@ def get_posts(page, url, game):
     print(f"\n[{game}] 페이지 접속: {url}")
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        print("최종 주소:", page.url)
+        print("페이지 제목:", page.title())
+        print("페이지 HTML 앞부분:", page.content()[:1000])
         page.wait_for_timeout(7000)
     except Exception as exc:
         print(f"[{game}] 페이지 로딩 오류: {exc}")
