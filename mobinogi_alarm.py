@@ -14,7 +14,7 @@ def main():
             "GitHub Secrets에 MOBINOGI_WEBHOOK을 설정해 주세요."
         )
 
-    message = "모비노기 주간컨텐츠 점검 시간"
+    message = "모비노기 주간컨텐츠 점검 시간 @here"
 
     response = requests.post(
         WEBHOOK_URL,
