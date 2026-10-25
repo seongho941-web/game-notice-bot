@@ -73,4 +73,4 @@ if __name__ == "__main__":
     except Exception as error:
         print(f"[알람 오류] {error}")
         sys.exit(1)
-```
+
