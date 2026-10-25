@@ -1,0 +1,62 @@
+```yaml
+name: Dokkaebi Alarm Bot
+
+on:
+  schedule:
+    # 매일 20:45 KST - 필드보스
+    - cron: "45 11 * * *"
+
+    # 매일 21:45 KST - 낙화의전장
+    - cron: "45 12 * * *"
+
+    # 매주 화요일 22:00 KST - 주간컨텐츠 점검
+    - cron: "0 13 * * 2"
+
+    # 매주 금요일 20:00 KST - 신기쟁탈전
+    - cron: "0 11 * * 5"
+
+    # 매주 토요일 20:10 KST - 미혹의정원
+    - cron: "10 11 * * 6"
+
+  workflow_dispatch:
+    inputs:
+      alarm:
+        description: "수동 테스트할 알람"
+        required: true
+        type: choice
+        options:
+          - "45 11 * * *"
+          - "45 12 * * *"
+          - "0 13 * * 2"
+          - "0 11 * * 5"
+          - "10 11 * * 6"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dokkaebi-alarm-bot
+  cancel-in-progress: false
+
+jobs:
+  send-alarm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 저장소 가져오기
+        uses: actions/checkout@v4
+
+      - name: Python 준비
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 패키지 설치
+        run: pip install requests
+
+      - name: 알람 전송
+        env:
+          ALARM_WEBHOOK: ${{ secrets.ALARM_WEBHOOK }}
+          ALARM_SCHEDULE: ${{ github.event.schedule || inputs.alarm }}
+        run: python alarm.py
+```
