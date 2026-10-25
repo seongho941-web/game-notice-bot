@@ -1,0 +1,37 @@
+
+name: Mobinogi Weekly Alarm
+
+on:
+  schedule:
+    # 매주 일요일 22:00 KST
+    - cron: "0 13 * * 0"
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobinogi-weekly-alarm
+  cancel-in-progress: false
+
+jobs:
+  send-alarm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 저장소 가져오기
+        uses: actions/checkout@v4
+
+      - name: Python 준비
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 패키지 설치
+        run: pip install requests
+
+      - name: 모비노기 알람 전송
+        env:
+          MOBINOGI_WEBHOOK: ${{ secrets.MOBINOGI_WEBHOOK }}
+        run: python mobinogi_alarm.py
