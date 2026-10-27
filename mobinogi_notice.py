@@ -1,4 +1,4 @@
-```python
+
 def fetch_notices():
     """모비노기 공지 목록을 가져오고, 찾지 못하면 응답 구조를 진단한다."""
     headers = {
@@ -70,4 +70,3 @@ def fetch_notices():
 
     print(f"[진단] 공지 {len(notices)}개 발견")
     return notices
-```
