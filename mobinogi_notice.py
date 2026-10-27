@@ -15,13 +15,16 @@ STATE_FILE = Path("mobinogi_seen_posts.json")
 
 def fetch_notices():
     """모비노기 공지 목록에서 제목과 링크를 가져온다."""
+
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
             "Chrome/130.0.0.0 Safari/537.36"
-        )
+        ),
+        "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
     }
+
 
     response = requests.get(
         NOTICE_URL,
