@@ -26,12 +26,21 @@ def fetch_notices():
     }
 
 
+   
     response = requests.get(
         NOTICE_URL,
         headers=headers,
         timeout=30,
+        allow_redirects=True,
     )
+    
+    print(f"[진단] 최초 요청 주소: {NOTICE_URL}")
+    print(f"[진단] 최종 응답 주소: {response.url}")
+    print(f"[진단] 리다이렉트 경로: {[r.url for r in response.history]}")
+    print(f"[진단] HTTP 상태 코드: {response.status_code}")
+    
     response.raise_for_status()
+  
 
     soup = BeautifulSoup(response.text, "html.parser")
 
